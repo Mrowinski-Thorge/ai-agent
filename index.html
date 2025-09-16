@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Universal AI Agent</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <style>
+        :root {
+            --pico-font-size: 100%;
+            --pico-line-height: 1.5;
+        }
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: var(--pico-background-color);
+        }
+        main { 
+            max-width: 960px; 
+            width: 100%;
+            padding: 1rem;
+        }
+        #chat-view { display: none; }
+        .chat-message {
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: var(--pico-border-radius);
+        }
+        .user-message {
+            background-color: var(--pico-muted-background-color);
+        }
+        .ai-message {
+            background-color: var(--pico-card-background-color);
+            border: 1px solid var(--pico-card-border-color);
+        }
+        .ai-message pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            margin: 0;
+            font-size: 0.9em;
+        }
+        .thinking-cursor {
+            display: inline-block;
+            width: 10px;
+            height: 1.2em;
+            background-color: var(--pico-primary);
+            animation: blink 1s step-end infinite;
+            vertical-align: text-bottom;
+        }
+        @keyframes blink {
+            from, to { background-color: transparent; }
+            50% { background-color: var(--pico-primary); }
+        }
+        .message-header {
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+            font-size: 0.9em;
+        }
+        .grid-3 {
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <!-- Ansicht 1: Das Eingabeformular -->
+        <div id="form-view">
+            <h1 align="center">Universal AI Agent</h1>
+            <p align="center">Ihr anpassbarer Assistent für Recherche, Code und Präsentationen.</p>
+
+            <form id="agent-form">
+                <div class="password-field">
+                    <label for="password">Passwort</label>
+                    <input type="password" id="password" name="password" placeholder="Zugangspasswort" required>
+                </div>
+                
+                <label for="prompt">Ihre Anfrage</label>
+                <textarea id="prompt" name="prompt" rows="5" placeholder="z.B. Erkläre das Konzept von Quantencomputing in einfachen Worten." required></textarea>
+
+                <div class="grid grid-3">
+                    <fieldset>
+                        <legend>Werkzeuge</legend>
+                        <label><input type="checkbox" id="websuche" name="websuche" checked> Websuche</label>
+                        <label><input type="checkbox" id="code-interpreter" name="code-interpreter"> Code Interpreter</label>
+                    </fieldset>
+
+                    <fieldset>
+                        <legend>Ausgabeformat</legend>
+                        <label><input type="radio" id="output_text" name="output_format" value="text" checked> Text</label>
+                        <label><input type="radio" id="output_powerpoint" name="output_format" value="powerpoint"> PowerPoint</label>
+                    </fieldset>
+                </div>
+
+                <div class="grid">
+                    <div>
+                        <label for="model">Modell / System</label>
+                        <select id="model" name="model">
+                            <option value="groq/compound" selected>Groq Compound (Multi-Tool)</option>
+                            <option value="groq/compound-mini">Groq Compound Mini (Single-Tool)</option>
+                            <option value="openai/gpt-oss-120b">GPT-OSS 120B</option>
+                            <option value="llama-3.3-70b-versatile">Llama 3.3 70B</option>
+                            <option value="llama-3.1-8b-instant">Llama 3.1 8B (Schnell)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="max_tokens">Max Tokens (optional)</label>
+                        <input type="number" id="max_tokens" name="max_tokens" placeholder="Leer = Standard">
+                    </div>
+                </div>
+
+                <button type="submit" id="submit-button">Anfrage senden</button>
+            </form>
+        </div>
+
+        <!-- Ansicht 2: Die Lade-/Antwortansicht im Chat-Stil -->
+        <div id="chat-view">
+            <div class="chat-message user-message">
+                <div class="message-header">Sie</div>
+                <p id="user-question"></p>
+            </div>
+            <div class="chat-message ai-message">
+                <div class="message-header">AI Agent</div>
+                <div id="ai-response-area">
+                    <!-- Hier kommt entweder der Lade- oder der finale Text rein -->
+                </div>
+            </div>
+            <button id="new-chat-button">Neue Anfrage</button>
+        </div>
+    </main>
+
+    <script>
+        const formView = document.getElementById('form-view');
+        const chatView = document.getElementById('chat-view');
+        const agentForm = document.getElementById('agent-form');
+        const submitButton = document.getElementById('submit-button');
+        const userQuestion = document.getElementById('user-question');
+        const aiResponseArea = document.getElementById('ai-response-area');
+        const newChatButton = document.getElementById('new-chat-button');
+
+        agentForm.addEventListener('submit', async function(event) {
+            event.preventDefault();
+
+            // UI für Ladezustand vorbereiten
+            submitButton.setAttribute('aria-busy', 'true');
+            submitButton.disabled = true;
+            
+            // Formulardaten auslesen
+            const password = document.getElementById('password').value;
+            const promptText = document.getElementById('prompt').value;
+            const outputFormat = document.querySelector('input[name="output_format"]:checked').value;
+            const maxTokens = document.getElementById('max_tokens').value;
+
+            // Payload für die API zusammenstellen
+            const payload = {
+                prompt: promptText,
+                tools: {
+                    websuche: document.getElementById('websuche').checked,
+                    code_interpreter: document.getElementById('code-interpreter').checked
+                },
+                output_format: outputFormat,
+                model: document.getElementById('model').value,
+            };
+            if (maxTokens && parseInt(maxTokens) > 0) {
+                payload.max_tokens = parseInt(maxTokens);
+            }
+
+            // Ansicht wechseln und Ladeanimation starten
+            userQuestion.textContent = promptText;
+            aiResponseArea.innerHTML = '<span class="thinking-cursor"></span>';
+            formView.style.display = 'none';
+            chatView.style.display = 'block';
+
+            const apiUrl = 'https://ai-agent-backend-hatu.onrender.com/generate';
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${password}`
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (response.status === 401) throw new Error('Authentifizierung fehlgeschlagen. Falsches Passwort?');
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(`Server-Fehler: ${errorData.error || response.statusText}`);
+                }
+
+                if (outputFormat === 'powerpoint') {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `praesentation.pptx`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.URL.revokeObjectURL(url);
+                    aiResponseArea.innerHTML = '<p>✅ PowerPoint-Download wurde gestartet.</p>';
+                } else {
+                    const data = await response.json();
+                    const responseCode = document.createElement('code');
+                    responseCode.textContent = data.responseText;
+                    const responsePre = document.createElement('pre');
+                    responsePre.appendChild(responseCode);
+                    aiResponseArea.innerHTML = ''; // Leeren
+                    aiResponseArea.appendChild(responsePre);
+                }
+
+            } catch (error) {
+                console.error('Fehler:', error);
+                aiResponseArea.innerHTML = `<p style="color: var(--pico-form-element-invalid-active-border-color);"><strong>Fehler:</strong> ${error.message}</p>`;
+            } finally {
+                submitButton.removeAttribute('aria-busy');
+                submitButton.disabled = false;
+            }
+        });
+
+        newChatButton.addEventListener('click', () => {
+            chatView.style.display = 'none';
+            formView.style.display = 'block';
+            document.getElementById('prompt').focus();
+        });
+    </script>
+</body>
+</html>
