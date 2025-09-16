@@ -6,37 +6,62 @@
     <title>Universal AI Agent</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
     <style>
-        :root { --footer-height: 230px; }
+        :root {
+            --footer-height: auto;
+            --pico-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+        }
         html, body { height: 100%; margin: 0; overflow: hidden; }
-        body { display: flex; flex-direction: column; }
+        body { display: flex; flex-direction: column; background-color: #171717; }
+
+        header {
+            padding: 0.75rem 1.5rem;
+            border-bottom: 1px solid var(--pico-card-border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        header h1 { font-size: 1.1rem; margin: 0; }
+        #new-chat-button { margin: 0; font-size: 0.9rem; }
 
         main {
             flex-grow: 1;
             overflow-y: auto;
             padding: 1rem;
-            padding-bottom: var(--footer-height);
+            padding-bottom: 120px; /* Platz für Footer */
             width: 100%;
             max-width: 960px;
             margin: 0 auto;
         }
 
         #start-view { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; height: 100%; }
-        #chat-log { display: none; }
-        .chat-message { padding: 1.2rem; margin-bottom: 1rem; border-radius: var(--pico-border-radius); }
-        .ai-message { background-color: var(--pico-card-background-color); }
-        .message-header { font-weight: bold; margin-bottom: 0.5rem; }
-        .ai-message pre { white-space: pre-wrap; word-wrap: break-word; background-color: #1a1a1a; padding: 1rem; border-radius: var(--pico-border-radius); }
+        .chat-message { display: flex; flex-direction: column; max-width: 95%; margin-bottom: 1.5rem; }
+        .user-message { align-self: flex-end; align-items: flex-end; }
+        .ai-message { align-self: flex-start; align-items: flex-start; }
+        
+        .message-content { padding: 0.8rem 1.2rem; border-radius: var(--pico-border-radius); }
+        .user-message .message-content { background-color: var(--pico-primary-background); color: var(--pico-primary-inverse); }
+        .ai-message .message-content { background-color: var(--pico-card-background-color); }
+        
+        .message-header { font-weight: bold; margin-bottom: 0.3rem; font-size: 0.9em; }
+        .ai-message pre { white-space: pre-wrap; word-wrap: break-word; background-color: #111; padding: 1rem; border-radius: var(--pico-border-radius); }
         .thinking-cursor { display: inline-block; width: 10px; height: 1.2em; background-color: var(--pico-primary); animation: blink 1s step-end infinite; vertical-align: text-bottom; }
         @keyframes blink { from, to { background-color: transparent; } 50% { background-color: var(--pico-primary); } }
         .error-message { color: var(--pico-form-element-invalid-active-border-color); background-color: rgba(255, 82, 82, 0.1); border: 1px solid; padding: 1rem; border-radius: var(--pico-border-radius); }
 
-        footer { position: fixed; bottom: 0; left: 0; right: 0; background: var(--pico-background-color); border-top: 1px solid var(--pico-card-border-color); padding: 1rem; z-index: 100; }
+        footer { position: fixed; bottom: 0; left: 0; right: 0; background: #171717; padding: 1rem; }
         #form-container { max-width: 960px; margin: 0 auto; }
-        #manual-controls { border: 1px solid var(--pico-card-border-color); padding: 1rem; border-radius: var(--pico-border-radius); margin-bottom: 1rem; }
+        #prompt-wrapper { display: flex; align-items: flex-end; gap: 0.5rem; background-color: var(--pico-card-background-color); padding: 0.5rem; border-radius: var(--pico-border-radius); border: 1px solid var(--pico-card-border-color); }
+        #prompt { flex-grow: 1; margin: 0; resize: none; border: none; background: transparent; box-shadow: none; }
+        .icon-button { width: 44px; height: 44px; padding: 0; }
+        
+        #settings-modal .grid { grid-template-columns: 1fr; }
+        #manual-controls { border-top: 1px solid var(--pico-card-border-color); margin-top: 1rem; padding-top: 1rem; }
     </style>
 </head>
 <body>
 
+    <!-- Passwort-Modal (unverändert) -->
     <dialog id="password-modal">
         <article>
             <header><h3>Zugangspasswort</h3></header>
@@ -47,10 +72,58 @@
         </article>
     </dialog>
 
+    <!-- NEU: Einstellungs-Modal -->
+    <dialog id="settings-modal">
+        <article>
+            <header>
+                <a href="#close" aria-label="Close" class="close" data-target="settings-modal" onClick="closeModal(event)"></a>
+                Einstellungen
+            </header>
+            <div class="grid">
+                <fieldset>
+                    <legend>Modus</legend>
+                    <label><input type="radio" name="mode" value="automatic" checked> Automatisch</label>
+                    <label><input type="radio" name="mode" value="manual"> Manuell</label>
+                </fieldset>
+                <div>
+                    <label for="output_format">Ausgabeformat</label>
+                    <select id="output_format" name="output_format">
+                        <option value="text" selected>Text</option>
+                        <option value="powerpoint">PowerPoint</option>
+                        <option value="code">Code</option>
+                    </select>
+                </div>
+            </div>
+            <div id="manual-controls" hidden>
+                <div class="grid">
+                    <fieldset>
+                        <legend>Werkzeuge</legend>
+                        <label><input type="checkbox" id="websuche" name="websuche"> Websuche</label>
+                        <label><input type="checkbox" id="code-interpreter" name="code-interpreter"> Code Interpreter</label>
+                    </fieldset>
+                    <div>
+                        <label for="model">Modell</label>
+                        <select id="model" name="model">
+                            <option value="llama-3.3-70b-versatile">Llama 3.3 70B (Stark)</option>
+                            <option value="llama-3.1-8b-instant" selected>Llama 3.1 8B (Schnell)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <footer>
+                <button data-target="settings-modal" onClick="closeModal(event)">Fertig</button>
+            </footer>
+        </article>
+    </dialog>
+
+    <header>
+        <h1>Universal AI Agent</h1>
+        <button id="new-chat-button" class="secondary outline">Neuer Chat</button>
+    </header>
+
     <main id="main-content">
         <div id="start-view">
-            <h1>Neo AI Agent</h1>
-            <p>Ihr Assistent für Recherche, Code und Präsentationen.</p>
+            <h2>Wie kann ich Ihnen helfen?</h2>
         </div>
         <div id="chat-log"></div>
     </main>
@@ -58,106 +131,62 @@
     <footer>
         <div id="form-container">
             <form id="agent-form">
-                <div id="manual-controls" hidden>
-                    <div class="grid">
-                        <fieldset>
-                            <legend>Werkzeuge</legend>
-                            <label><input type="checkbox" id="websuche" name="websuche"> Websuche</label>
-                            <label><input type="checkbox" id="code-interpreter" name="code-interpreter"> Code Interpreter</label>
-                        </fieldset>
-                        <div>
-                            <label for="model">Modell</label>
-                            <!-- KORREKTUR: Modellauswahl angepasst -->
-                            <select id="model" name="model">
-                                <option value="llama-3.3-70b-versatile">Llama 3.3 70B (Stark)</option>
-                                <option value="llama-3.1-8b-instant" selected>Llama 3.1 8B (Schnell)</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-                <textarea id="prompt" name="prompt" rows="1" placeholder="Ihre Anfrage..." required></textarea>
-                <div class="grid">
-                    <fieldset>
-                        <legend>Modus</legend>
-                        <label><input type="radio" name="mode" value="automatic" checked> Auto</label>
-                        <label><input type="radio" name="mode" value="manual"> Manuell</label>
-                    </fieldset>
-                    <div>
-                        <label for="output_format">Ausgabe</label>
-                        <select id="output_format" name="output_format">
-                            <option value="text" selected>Text</option>
-                            <option value="powerpoint">PowerPoint</option>
-                            <option value="code">Code</option>
-                        </select>
-                    </div>
-                    <button type="submit" id="submit-button">Senden</button>
+                <div id="prompt-wrapper">
+                    <button type="button" class="secondary outline icon-button" id="settings-button" onClick="openModal(event, 'settings-modal')">+</button>
+                    <textarea id="prompt" name="prompt" rows="1" placeholder="Ihre Anfrage..." required></textarea>
+                    <button type="submit" id="submit-button" class="icon-button">➤</button>
                 </div>
             </form>
         </div>
     </footer>
 
     <script>
-        // Das gesamte JavaScript aus der vorherigen Version kann hier 1:1 übernommen werden.
-        // Es ist bereits korrekt und robust.
+        // --- DOM Elemente ---
         const passwordModal = document.getElementById('password-modal');
-        const passwordForm = document.getElementById('password-form');
+        const settingsModal = document.getElementById('settings-modal');
         const agentForm = document.getElementById('agent-form');
         const manualControls = document.getElementById('manual-controls');
         const promptInput = document.getElementById('prompt');
         const chatLog = document.getElementById('chat-log');
         const startView = document.getElementById('start-view');
         const mainContent = document.getElementById('main-content');
-        const submitButton = document.getElementById('submit-button');
+        const newChatButton = document.getElementById('new-chat-button');
 
-        passwordForm.addEventListener('submit', (e) => {
+        // --- Modal-Logik ---
+        const openModal = (event, modalId) => { event.preventDefault(); document.getElementById(modalId).showModal(); };
+        const closeModal = (event) => { event.preventDefault(); event.target.closest('dialog').close(); };
+        document.getElementById('password-form').addEventListener('submit', (e) => {
             e.preventDefault();
             sessionStorage.setItem('api_password', document.getElementById('password-input').value);
-            passwordModal.close();
+            closeModal(e);
         });
-        function checkPassword() { if (!sessionStorage.getItem('api_password')) passwordModal.showModal(); }
-        window.addEventListener('load', checkPassword);
 
+        // --- UI-Events ---
+        window.addEventListener('load', () => { if (!sessionStorage.getItem('api_password')) passwordModal.showModal(); });
+        newChatButton.addEventListener('click', () => { chatLog.innerHTML = ''; startView.style.display = 'flex'; });
         document.querySelectorAll('input[name="mode"]').forEach(radio => {
-            radio.addEventListener('change', (event) => {
-                manualControls.hidden = event.target.value !== 'manual';
-            });
+            radio.addEventListener('change', (event) => { manualControls.hidden = event.target.value !== 'manual'; });
+        });
+        promptInput.addEventListener('input', () => {
+            promptInput.style.height = 'auto';
+            promptInput.style.height = `${promptInput.scrollHeight}px`;
         });
 
-        function addMessage(sender, content, isHtml = false) {
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `chat-message ${sender}-message`;
-            const contentDiv = document.createElement('div');
-            if (isHtml) {
-                contentDiv.innerHTML = content;
-            } else {
-                contentDiv.textContent = content;
-            }
-            messageDiv.innerHTML = `<div class="message-header">${sender === 'user' ? 'Sie' : 'AI Agent'}</div>`;
-            messageDiv.appendChild(contentDiv);
-            chatLog.appendChild(messageDiv);
-            mainContent.scrollTop = mainContent.scrollHeight;
-            return contentDiv;
-        }
-
+        // --- Haupt-Submit-Logik ---
         agentForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            checkPassword();
             const password = sessionStorage.getItem('api_password');
-            if (!password) return;
+            if (!password) { passwordModal.showModal(); return; }
 
             const promptText = promptInput.value.trim();
             if (!promptText) return;
 
-            if (chatLog.style.display === 'none') {
-                startView.style.display = 'none';
-                chatLog.style.display = 'block';
-            }
-
+            startView.style.display = 'none';
             addMessage('user', promptText);
             const aiMessageContent = addMessage('ai', `<i>Agent plant die Anfrage...</i><span class="thinking-cursor"></span>`, true);
 
-            promptInput.value = '';
-            submitButton.setAttribute('aria-busy', 'true');
+            document.getElementById('submit-button').setAttribute('aria-busy', 'true');
+            promptInput.value = ''; promptInput.style.height = 'auto';
 
             const mode = document.querySelector('input[name="mode"]:checked').value;
             const payload = {
@@ -173,7 +202,7 @@
             const apiUrl = 'https://ai-agent-backend-hatu.onrender.com/generate';
 
             try {
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                await new Promise(resolve => setTimeout(resolve, 800));
                 aiMessageContent.innerHTML = `<i>Führe die Anfrage aus...</i><span class="thinking-cursor"></span>`;
 
                 const response = await fetch(apiUrl, {
@@ -183,25 +212,24 @@
                 });
 
                 if (!response.ok) {
-                    let errorTitle = `Fehler (${response.status})`, errorMessage = "Ein unerwarteter Server-Fehler.";
+                    let errorData = await response.json().catch(() => ({}));
+                    let errorTitle = `Fehler (${response.status})`;
+                    let errorMessage = errorData.details || "Ein unerwarteter Server-Fehler ist aufgetreten.";
                     if (response.status === 401) {
                         sessionStorage.removeItem('api_password');
-                        errorMessage = "Passwort war falsch. Bitte Seite neu laden und erneut eingeben.";
+                        errorMessage = "Das Passwort war falsch. Es wurde entfernt, bitte geben Sie es erneut ein.";
                     }
-                    try {
-                        const errorData = await response.json();
-                        errorMessage += ` Details: ${errorData.details || 'Keine Details'}`;
-                    } catch {}
                     throw new Error(`${errorTitle}|${errorMessage}`);
                 }
                 
                 if (payload.output_format === 'powerpoint') {
                     aiMessageContent.innerHTML = `<p>✅ PowerPoint-Download wird gestartet.</p>`;
                     const blob = await response.blob();
-                    const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
-                    a.href = url; a.download = `praesentation.pptx`; a.click();
-                    window.URL.revokeObjectURL(url);
+                    a.href = window.URL.createObjectURL(blob);
+                    a.download = `praesentation.pptx`;
+                    a.click();
+                    window.URL.revokeObjectURL(a.href);
                 } else {
                     const data = await response.json();
                     let formattedResponse = data.responseText;
@@ -215,11 +243,37 @@
 
             } catch (error) {
                 const [title, message] = error.message.split('|');
-                aiMessageContent.innerHTML = `<div class="error-message"><strong>${title}</strong><p>${message || "Ein Verbindungsfehler ist aufgetreten."}</p></div>`;
+                aiMessageContent.innerHTML = `<div class="error-message"><strong>${title}</strong><p>${message}</p></div>`;
             } finally {
-                submitButton.removeAttribute('aria-busy');
+                document.getElementById('submit-button').removeAttribute('aria-busy');
             }
         });
+
+        function addMessage(sender, content, isHtml = false) {
+            const messageContainer = document.createElement('div');
+            messageContainer.className = `chat-message ${sender}-message`;
+            
+            const header = document.createElement('div');
+            header.className = 'message-header';
+            header.textContent = sender === 'user' ? 'Sie' : 'AI Agent';
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            if (isHtml) {
+                contentDiv.innerHTML = content;
+            } else {
+                const p = document.createElement('p');
+                p.style.margin = '0';
+                p.textContent = content;
+                contentDiv.appendChild(p);
+            }
+            
+            messageContainer.appendChild(header);
+            messageContainer.appendChild(contentDiv);
+            chatLog.appendChild(messageContainer);
+            mainContent.scrollTop = mainContent.scrollHeight;
+            return contentDiv;
+        }
     </script>
 </body>
 </html>
