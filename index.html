@@ -62,6 +62,17 @@
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 1rem;
         }
+        .error-message {
+            color: var(--pico-form-element-invalid-active-border-color);
+            background-color: rgba(255, 82, 82, 0.1);
+            border: 1px solid var(--pico-form-element-invalid-active-border-color);
+            padding: 1rem;
+            border-radius: var(--pico-border-radius);
+        }
+        .error-message strong {
+            display: block;
+            margin-bottom: 0.5rem;
+        }
     </style>
 </head>
 <body>
@@ -140,20 +151,27 @@
         const aiResponseArea = document.getElementById('ai-response-area');
         const newChatButton = document.getElementById('new-chat-button');
 
+        // Funktion zur Anzeige formatierter Fehlermeldungen
+        function displayError(title, message) {
+            aiResponseArea.innerHTML = `
+                <div class="error-message">
+                    <strong>${title}</strong>
+                    <p>${message}</p>
+                </div>
+            `;
+        }
+
         agentForm.addEventListener('submit', async function(event) {
             event.preventDefault();
 
-            // UI für Ladezustand vorbereiten
             submitButton.setAttribute('aria-busy', 'true');
             submitButton.disabled = true;
             
-            // Formulardaten auslesen
             const password = document.getElementById('password').value;
             const promptText = document.getElementById('prompt').value;
             const outputFormat = document.querySelector('input[name="output_format"]:checked').value;
             const maxTokens = document.getElementById('max_tokens').value;
 
-            // Payload für die API zusammenstellen
             const payload = {
                 prompt: promptText,
                 tools: {
@@ -167,7 +185,6 @@
                 payload.max_tokens = parseInt(maxTokens);
             }
 
-            // Ansicht wechseln und Ladeanimation starten
             userQuestion.textContent = promptText;
             aiResponseArea.innerHTML = '<span class="thinking-cursor"></span>';
             formView.style.display = 'none';
@@ -185,10 +202,29 @@
                     body: JSON.stringify(payload)
                 });
 
-                if (response.status === 401) throw new Error('Authentifizierung fehlgeschlagen. Falsches Passwort?');
+                // --- NEU: Detaillierte Fehlerprüfung ---
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(`Server-Fehler: ${errorData.error || response.statusText}`);
+                    let errorTitle = `Fehler (${response.status})`;
+                    let errorMessage = `Es ist ein unerwarteter Fehler aufgetreten.`;
+
+                    if (response.status === 401) {
+                        errorTitle = "Authentifizierung fehlgeschlagen";
+                        errorMessage = "Das eingegebene Passwort ist falsch. Bitte versuchen Sie es erneut.";
+                    } else if (response.status === 400) {
+                        errorTitle = "Ungültige Anfrage";
+                        errorMessage = "Die Anfrage war fehlerhaft. Haben Sie einen Prompt eingegeben?";
+                    } else if (response.status === 503 || response.status === 504) {
+                        errorTitle = "Server ausgelastet oder im Kaltstart";
+                        errorMessage = "Der Server braucht einen Moment, um zu starten, oder die KI ist überlastet. Bitte warten Sie 30 Sekunden und versuchen Sie es erneut. Dies ist im kostenlosen Tarif normal.";
+                    } else {
+                         try {
+                            const errorData = await response.json();
+                            errorMessage = errorData.error || `Server meldet: ${response.statusText}`;
+                        } catch (e) {
+                            errorMessage = `Der Server hat mit einem Fehler geantwortet, der nicht gelesen werden konnte. Status: ${response.statusText}`;
+                        }
+                    }
+                    throw new Error(`${errorTitle}|${errorMessage}`); // Trennen für die Anzeige
                 }
 
                 if (outputFormat === 'powerpoint') {
@@ -208,13 +244,18 @@
                     responseCode.textContent = data.responseText;
                     const responsePre = document.createElement('pre');
                     responsePre.appendChild(responseCode);
-                    aiResponseArea.innerHTML = ''; // Leeren
+                    aiResponseArea.innerHTML = '';
                     aiResponseArea.appendChild(responsePre);
                 }
 
             } catch (error) {
                 console.error('Fehler:', error);
-                aiResponseArea.innerHTML = `<p style="color: var(--pico-form-element-invalid-active-border-color);"><strong>Fehler:</strong> ${error.message}</p>`;
+                if (error.message.includes('|')) {
+                    const [title, message] = error.message.split('|');
+                    displayError(title, message);
+                } else {
+                    displayError("Netzwerk- oder Client-Fehler", "Die Verbindung zum Server konnte nicht hergestellt werden. Bitte prüfen Sie Ihre Internetverbindung.");
+                }
             } finally {
                 submitButton.removeAttribute('aria-busy');
                 submitButton.disabled = false;
