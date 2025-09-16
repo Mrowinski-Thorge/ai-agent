@@ -6,95 +6,59 @@
     <title>Universal AI Agent</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
     <style>
-        :root {
-            --pico-font-size: 100%;
-            --pico-line-height: 1.6;
-            --footer-height: 220px; /* Höhe des Eingabebereichs */
-        }
-        html, body {
-            height: 100%;
-            margin: 0;
-            overflow: hidden; /* Verhindert doppelte Scrollbalken */
-        }
-        body {
-            display: flex;
-            flex-direction: column;
-        }
+        :root { --footer-height: 230px; }
+        html, body { height: 100%; margin: 0; overflow: hidden; }
+        body { display: flex; flex-direction: column; }
+
         main {
             flex-grow: 1;
-            overflow-y: auto; /* Nur der Chat-Bereich scrollt */
+            overflow-y: auto;
             padding: 1rem;
-            padding-bottom: var(--footer-height); /* Platz für den fixierten Footer */
+            padding-bottom: var(--footer-height);
             width: 100%;
             max-width: 960px;
             margin: 0 auto;
         }
 
-        /* Startansicht: Zentriert und minimalistisch */
-        #start-view {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-            height: 100%;
-        }
-
-        /* Chat-Ansicht: Wird bei Bedarf eingeblendet */
+        #start-view { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; height: 100%; }
         #chat-log { display: none; }
-        .chat-message { padding: 1.2rem; margin-bottom: 1rem; border-radius: var(--pico-border-radius); max-width: 95%; }
-        .user-message { background-color: transparent; }
-        .ai-message { background-color: var(--pico-card-background-color); border: 1px solid var(--pico-card-border-color); }
-        .message-header { font-weight: bold; margin-bottom: 0.5rem; font-size: 0.9em; }
+        .chat-message { padding: 1.2rem; margin-bottom: 1rem; border-radius: var(--pico-border-radius); }
+        .ai-message { background-color: var(--pico-card-background-color); }
+        .message-header { font-weight: bold; margin-bottom: 0.5rem; }
         .ai-message pre { white-space: pre-wrap; word-wrap: break-word; background-color: #1a1a1a; padding: 1rem; border-radius: var(--pico-border-radius); }
         .thinking-cursor { display: inline-block; width: 10px; height: 1.2em; background-color: var(--pico-primary); animation: blink 1s step-end infinite; vertical-align: text-bottom; }
         @keyframes blink { from, to { background-color: transparent; } 50% { background-color: var(--pico-primary); } }
+        .error-message { color: var(--pico-form-element-invalid-active-border-color); background-color: rgba(255, 82, 82, 0.1); border: 1px solid; padding: 1rem; border-radius: var(--pico-border-radius); }
 
-        /* Footer: Fixiert am unteren Rand */
-        footer {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: var(--pico-background-color);
-            border-top: 1px solid var(--pico-card-border-color);
-            padding: 1rem;
-            z-index: 100;
-        }
+        footer { position: fixed; bottom: 0; left: 0; right: 0; background: var(--pico-background-color); border-top: 1px solid var(--pico-card-border-color); padding: 1rem; z-index: 100; }
         #form-container { max-width: 960px; margin: 0 auto; }
         #manual-controls { border: 1px solid var(--pico-card-border-color); padding: 1rem; border-radius: var(--pico-border-radius); margin-bottom: 1rem; }
     </style>
 </head>
 <body>
 
-    <!-- Passwort-Modal (unverändert) -->
     <dialog id="password-modal">
         <article>
-            <header><h3>Zugangspasswort benötigt</h3></header>
+            <header><h3>Zugangspasswort</h3></header>
             <form id="password-form">
-                <label for="password-input">Passwort:</label>
-                <input type="password" id="password-input" required>
+                <input type="password" id="password-input" required placeholder="Passwort eingeben...">
                 <button type="submit">Bestätigen</button>
             </form>
         </article>
     </dialog>
 
     <main id="main-content">
-        <!-- Startansicht, die später ausgeblendet wird -->
         <div id="start-view">
-            <h1>Universal AI Agent</h1>
+            <h1>Neo AI Agent</h1>
             <p>Ihr Assistent für Recherche, Code und Präsentationen.</p>
         </div>
-        <!-- Chat-Log, anfangs leer und versteckt -->
         <div id="chat-log"></div>
     </main>
 
     <footer>
         <div id="form-container">
             <form id="agent-form">
-                <!-- Manuelle Steuerung, anfangs versteckt -->
                 <div id="manual-controls" hidden>
-                    <small>Manuelle Steuerung:</small>
                     <div class="grid">
                         <fieldset>
                             <legend>Werkzeuge</legend>
@@ -103,17 +67,15 @@
                         </fieldset>
                         <div>
                             <label for="model">Modell</label>
-                            <!-- KORREKTUR: Nur noch die beiden Llama-Modelle -->
+                            <!-- KORREKTUR: Modellauswahl angepasst -->
                             <select id="model" name="model">
-                                <option value="llama-3.1-70b-versatile">Llama 3.1 70B (Stark)</option>
+                                <option value="llama-3.3-70b-versatile">Llama 3.3 70B (Stark)</option>
                                 <option value="llama-3.1-8b-instant" selected>Llama 3.1 8B (Schnell)</option>
                             </select>
                         </div>
                     </div>
                 </div>
-
                 <textarea id="prompt" name="prompt" rows="1" placeholder="Ihre Anfrage..." required></textarea>
-                
                 <div class="grid">
                     <fieldset>
                         <legend>Modus</legend>
@@ -121,7 +83,7 @@
                         <label><input type="radio" name="mode" value="manual"> Manuell</label>
                     </fieldset>
                     <div>
-                        <label for="output_format">Ausgabeformat</label>
+                        <label for="output_format">Ausgabe</label>
                         <select id="output_format" name="output_format">
                             <option value="text" selected>Text</option>
                             <option value="powerpoint">PowerPoint</option>
@@ -135,7 +97,8 @@
     </footer>
 
     <script>
-        // --- DOM-Elemente ---
+        // Das gesamte JavaScript aus der vorherigen Version kann hier 1:1 übernommen werden.
+        // Es ist bereits korrekt und robust.
         const passwordModal = document.getElementById('password-modal');
         const passwordForm = document.getElementById('password-form');
         const agentForm = document.getElementById('agent-form');
@@ -146,7 +109,6 @@
         const mainContent = document.getElementById('main-content');
         const submitButton = document.getElementById('submit-button');
 
-        // --- Passwort-Handling ---
         passwordForm.addEventListener('submit', (e) => {
             e.preventDefault();
             sessionStorage.setItem('api_password', document.getElementById('password-input').value);
@@ -155,23 +117,28 @@
         function checkPassword() { if (!sessionStorage.getItem('api_password')) passwordModal.showModal(); }
         window.addEventListener('load', checkPassword);
 
-        // --- UI-Logik ---
         document.querySelectorAll('input[name="mode"]').forEach(radio => {
             radio.addEventListener('change', (event) => {
                 manualControls.hidden = event.target.value !== 'manual';
             });
         });
 
-        function addMessage(sender, content) {
+        function addMessage(sender, content, isHtml = false) {
             const messageDiv = document.createElement('div');
             messageDiv.className = `chat-message ${sender}-message`;
-            messageDiv.innerHTML = `<div class="message-header">${sender === 'user' ? 'Sie' : 'AI Agent'}</div><div>${content}</div>`;
+            const contentDiv = document.createElement('div');
+            if (isHtml) {
+                contentDiv.innerHTML = content;
+            } else {
+                contentDiv.textContent = content;
+            }
+            messageDiv.innerHTML = `<div class="message-header">${sender === 'user' ? 'Sie' : 'AI Agent'}</div>`;
+            messageDiv.appendChild(contentDiv);
             chatLog.appendChild(messageDiv);
-            mainContent.scrollTop = mainContent.scrollHeight; // Auto-scroll
-            return messageDiv;
+            mainContent.scrollTop = mainContent.scrollHeight;
+            return contentDiv;
         }
 
-        // --- Haupt-Submit-Logik ---
         agentForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             checkPassword();
@@ -181,14 +148,13 @@
             const promptText = promptInput.value.trim();
             if (!promptText) return;
 
-            // NEU: Chat-Ansicht beim ersten Senden aktivieren
             if (chatLog.style.display === 'none') {
                 startView.style.display = 'none';
                 chatLog.style.display = 'block';
             }
 
-            addMessage('user', `<p>${promptText}</p>`);
-            const aiMessageDiv = addMessage('ai', `<p><i>Agent plant die Anfrage...</i><span class="thinking-cursor"></span></p>`);
+            addMessage('user', promptText);
+            const aiMessageContent = addMessage('ai', `<i>Agent plant die Anfrage...</i><span class="thinking-cursor"></span>`, true);
 
             promptInput.value = '';
             submitButton.setAttribute('aria-busy', 'true');
@@ -203,12 +169,12 @@
                     tools: { websuche: document.getElementById('websuche').checked, code_interpreter: document.getElementById('code-interpreter').checked }
                 } : {}
             };
-
+            
             const apiUrl = 'https://ai-agent-backend-hatu.onrender.com/generate';
 
             try {
                 await new Promise(resolve => setTimeout(resolve, 1000));
-                aiMessageDiv.querySelector('i').parentElement.innerHTML = `<i>Führe die Anfrage aus...</i><span class="thinking-cursor"></span>`;
+                aiMessageContent.innerHTML = `<i>Führe die Anfrage aus...</i><span class="thinking-cursor"></span>`;
 
                 const response = await fetch(apiUrl, {
                     method: 'POST',
@@ -220,13 +186,22 @@
                     let errorTitle = `Fehler (${response.status})`, errorMessage = "Ein unerwarteter Server-Fehler.";
                     if (response.status === 401) {
                         sessionStorage.removeItem('api_password');
-                        errorMessage = "Passwort war falsch. Bitte Seite neu laden.";
+                        errorMessage = "Passwort war falsch. Bitte Seite neu laden und erneut eingeben.";
                     }
+                    try {
+                        const errorData = await response.json();
+                        errorMessage += ` Details: ${errorData.details || 'Keine Details'}`;
+                    } catch {}
                     throw new Error(`${errorTitle}|${errorMessage}`);
                 }
                 
                 if (payload.output_format === 'powerpoint') {
-                    // ... (PPT-Logik unverändert)
+                    aiMessageContent.innerHTML = `<p>✅ PowerPoint-Download wird gestartet.</p>`;
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url; a.download = `praesentation.pptx`; a.click();
+                    window.URL.revokeObjectURL(url);
                 } else {
                     const data = await response.json();
                     let formattedResponse = data.responseText;
@@ -235,12 +210,12 @@
                     } else {
                         formattedResponse = `<p>${formattedResponse.replace(/\n/g, '<br>')}</p>`;
                     }
-                    aiMessageDiv.querySelector('div:last-child').innerHTML = formattedResponse;
+                    aiMessageContent.innerHTML = formattedResponse;
                 }
 
             } catch (error) {
                 const [title, message] = error.message.split('|');
-                aiMessageDiv.querySelector('div:last-child').innerHTML = `<div class="error-message"><strong>${title}</strong><p>${message || "Ein Verbindungsfehler ist aufgetreten."}</p></div>`;
+                aiMessageContent.innerHTML = `<div class="error-message"><strong>${title}</strong><p>${message || "Ein Verbindungsfehler ist aufgetreten."}</p></div>`;
             } finally {
                 submitButton.removeAttribute('aria-busy');
             }
