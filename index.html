@@ -6,10 +6,7 @@
     <title>Universal AI Agent</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
     <style>
-        :root {
-            --footer-height: auto;
-            --pico-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
-        }
+        :root { --pico-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif; }
         html, body { height: 100%; margin: 0; overflow: hidden; }
         body { display: flex; flex-direction: column; background-color: #171717; }
 
@@ -28,7 +25,7 @@
             flex-grow: 1;
             overflow-y: auto;
             padding: 1rem;
-            padding-bottom: 120px; /* Platz für Footer */
+            padding-bottom: 120px;
             width: 100%;
             max-width: 960px;
             margin: 0 auto;
@@ -53,7 +50,7 @@
         #form-container { max-width: 960px; margin: 0 auto; }
         #prompt-wrapper { display: flex; align-items: flex-end; gap: 0.5rem; background-color: var(--pico-card-background-color); padding: 0.5rem; border-radius: var(--pico-border-radius); border: 1px solid var(--pico-card-border-color); }
         #prompt { flex-grow: 1; margin: 0; resize: none; border: none; background: transparent; box-shadow: none; }
-        .icon-button { width: 44px; height: 44px; padding: 0; }
+        .icon-button { width: 44px; height: 44px; padding: 0; flex-shrink: 0; }
         
         #settings-modal .grid { grid-template-columns: 1fr; }
         #manual-controls { border-top: 1px solid var(--pico-card-border-color); margin-top: 1rem; padding-top: 1rem; }
@@ -61,18 +58,19 @@
 </head>
 <body>
 
-    <!-- Passwort-Modal (unverändert) -->
-    <dialog id="password-modal">
+    <dialog id="login-modal" open>
         <article>
-            <header><h3>Zugangspasswort</h3></header>
-            <form id="password-form">
-                <input type="password" id="password-input" required placeholder="Passwort eingeben...">
+            <header><h3>Willkommen</h3></header>
+            <form id="login-form">
+                <label for="username">Ihr Name</label>
+                <input type="text" id="username" required placeholder="Wie dürfen wir Sie nennen?">
+                <label for="password">Zugangspasswort</label>
+                <input type="password" id="password" required placeholder="Passwort eingeben...">
                 <button type="submit">Bestätigen</button>
             </form>
         </article>
     </dialog>
 
-    <!-- NEU: Einstellungs-Modal -->
     <dialog id="settings-modal">
         <article>
             <header>
@@ -104,15 +102,13 @@
                     <div>
                         <label for="model">Modell</label>
                         <select id="model" name="model">
-                            <option value="llama-3.3-70b-versatile">Llama 3.3 70B (Stark)</option>
+                            <option value="llama-3.1-70b-versatile">Llama 3.1 70B (Stark)</option>
                             <option value="llama-3.1-8b-instant" selected>Llama 3.1 8B (Schnell)</option>
                         </select>
                     </div>
                 </div>
             </div>
-            <footer>
-                <button data-target="settings-modal" onClick="closeModal(event)">Fertig</button>
-            </footer>
+            <footer><button data-target="settings-modal" onClick="closeModal(event)">Fertig</button></footer>
         </article>
     </dialog>
 
@@ -123,7 +119,7 @@
 
     <main id="main-content">
         <div id="start-view">
-            <h2>Wie kann ich Ihnen helfen?</h2>
+            <h2 id="welcome-message"></h2>
         </div>
         <div id="chat-log"></div>
     </main>
@@ -132,7 +128,7 @@
         <div id="form-container">
             <form id="agent-form">
                 <div id="prompt-wrapper">
-                    <button type="button" class="secondary outline icon-button" id="settings-button" onClick="openModal(event, 'settings-modal')">+</button>
+                    <button type="button" class="secondary outline icon-button" onClick="openModal(event, 'settings-modal')">+</button>
                     <textarea id="prompt" name="prompt" rows="1" placeholder="Ihre Anfrage..." required></textarea>
                     <button type="submit" id="submit-button" class="icon-button">➤</button>
                 </div>
@@ -142,7 +138,7 @@
 
     <script>
         // --- DOM Elemente ---
-        const passwordModal = document.getElementById('password-modal');
+        const loginModal = document.getElementById('login-modal');
         const settingsModal = document.getElementById('settings-modal');
         const agentForm = document.getElementById('agent-form');
         const manualControls = document.getElementById('manual-controls');
@@ -151,32 +147,56 @@
         const startView = document.getElementById('start-view');
         const mainContent = document.getElementById('main-content');
         const newChatButton = document.getElementById('new-chat-button');
+        const welcomeMessage = document.getElementById('welcome-message');
 
         // --- Modal-Logik ---
         const openModal = (event, modalId) => { event.preventDefault(); document.getElementById(modalId).showModal(); };
         const closeModal = (event) => { event.preventDefault(); event.target.closest('dialog').close(); };
-        document.getElementById('password-form').addEventListener('submit', (e) => {
+        
+        document.getElementById('login-form').addEventListener('submit', (e) => {
             e.preventDefault();
-            sessionStorage.setItem('api_password', document.getElementById('password-input').value);
+            sessionStorage.setItem('username', document.getElementById('username').value);
+            sessionStorage.setItem('api_password', document.getElementById('password').value);
+            updateWelcomeMessage();
             closeModal(e);
         });
 
         // --- UI-Events ---
-        window.addEventListener('load', () => { if (!sessionStorage.getItem('api_password')) passwordModal.showModal(); });
-        newChatButton.addEventListener('click', () => { chatLog.innerHTML = ''; startView.style.display = 'flex'; });
+        window.addEventListener('load', () => {
+            if (!sessionStorage.getItem('api_password') || !sessionStorage.getItem('username')) {
+                loginModal.showModal();
+            } else {
+                updateWelcomeMessage();
+            }
+        });
+        
+        function updateWelcomeMessage() {
+            const username = sessionStorage.getItem('username');
+            if (username) {
+                welcomeMessage.textContent = `Wie kann ich Ihnen helfen, ${username}?`;
+            }
+        }
+
+        newChatButton.addEventListener('click', () => {
+            chatLog.innerHTML = '';
+            startView.style.display = 'flex';
+            updateWelcomeMessage();
+        });
+
         document.querySelectorAll('input[name="mode"]').forEach(radio => {
             radio.addEventListener('change', (event) => { manualControls.hidden = event.target.value !== 'manual'; });
         });
+
         promptInput.addEventListener('input', () => {
             promptInput.style.height = 'auto';
             promptInput.style.height = `${promptInput.scrollHeight}px`;
         });
-
+        
         // --- Haupt-Submit-Logik ---
         agentForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const password = sessionStorage.getItem('api_password');
-            if (!password) { passwordModal.showModal(); return; }
+            if (!password) { loginModal.showModal(); return; }
 
             const promptText = promptInput.value.trim();
             if (!promptText) return;
@@ -216,8 +236,8 @@
                     let errorTitle = `Fehler (${response.status})`;
                     let errorMessage = errorData.details || "Ein unerwarteter Server-Fehler ist aufgetreten.";
                     if (response.status === 401) {
-                        sessionStorage.removeItem('api_password');
-                        errorMessage = "Das Passwort war falsch. Es wurde entfernt, bitte geben Sie es erneut ein.";
+                        sessionStorage.clear();
+                        errorMessage = "Das Passwort war falsch. Alle Daten wurden zurückgesetzt. Bitte laden Sie die Seite neu.";
                     }
                     throw new Error(`${errorTitle}|${errorMessage}`);
                 }
@@ -227,8 +247,7 @@
                     const blob = await response.blob();
                     const a = document.createElement('a');
                     a.href = window.URL.createObjectURL(blob);
-                    a.download = `praesentation.pptx`;
-                    a.click();
+                    a.download = `praesentation.pptx`; a.click();
                     window.URL.revokeObjectURL(a.href);
                 } else {
                     const data = await response.json();
@@ -255,7 +274,7 @@
             
             const header = document.createElement('div');
             header.className = 'message-header';
-            header.textContent = sender === 'user' ? 'Sie' : 'AI Agent';
+            header.textContent = sender === 'user' ? (sessionStorage.getItem('username') || 'Sie') : 'AI Agent';
             
             const contentDiv = document.createElement('div');
             contentDiv.className = 'message-content';
